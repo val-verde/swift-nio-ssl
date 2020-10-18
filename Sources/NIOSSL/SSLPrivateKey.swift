@@ -133,8 +133,17 @@ public class NIOSSLPrivateKey {
             // If fclose fails there is nothing we can do about it.
             _ = try? Posix.fclose(file: fileObject)
         }
+        guard let _callbackManager = callbackManager else {
+	    let key = CNIOBoringSSL_PEM_read_PrivateKey(fileObject, nil, nil, nil)
 
-        let key = withExtendedLifetime(callbackManager) { callbackManager -> UnsafeMutablePointer<EVP_PKEY>? in
+            if key == nil {
+                throw NIOSSLError.failedToLoadPrivateKey
+            }
+
+            self.init(withReference: key!)
+            return
+        }
+        let key = withExtendedLifetime(_callbackManager) { callbackManager -> UnsafeMutablePointer<EVP_PKEY>? in
             guard let bio = CNIOBoringSSL_BIO_new_fp(fileObject, BIO_NOCLOSE) else {
                 return nil
             }
@@ -146,11 +155,7 @@ public class NIOSSLPrivateKey {
             case .pem:
                 // This annoying conditional binding is used to work around the fact that I cannot pass
                 // a variable to a function pointer argument.
-                if let callbackManager = callbackManager {
-                    return CNIOBoringSSL_PEM_read_PrivateKey(fileObject, nil, { globalBoringSSLPassphraseCallback(buf: $0, size: $1, rwflag: $2, u: $3) }, Unmanaged.passUnretained(callbackManager as AnyObject).toOpaque())
-                } else {
-                    return CNIOBoringSSL_PEM_read_PrivateKey(fileObject, nil, nil, nil)
-                }
+                return CNIOBoringSSL_PEM_read_PrivateKey(fileObject, nil, { globalBoringSSLPassphraseCallback(buf: $0, size: $1, rwflag: $2, u: $3) }, Unmanaged.passUnretained(callbackManager as AnyObject).toOpaque())
             case .der:
                 return CNIOBoringSSL_d2i_PrivateKey_fp(fileObject, nil)
             }
@@ -170,17 +175,15 @@ public class NIOSSLPrivateKey {
             defer {
                 CNIOBoringSSL_BIO_free(bio)
             }
-
-            return withExtendedLifetime(callbackManager) { callbackManager -> UnsafeMutablePointer<EVP_PKEY>? in
+            guard let _callbackManager = callbackManager else {
+                return CNIOBoringSSL_PEM_read_bio_PrivateKey(bio, nil, nil, nil)
+            }
+            return withExtendedLifetime(_callbackManager) { callbackManager -> UnsafeMutablePointer<EVP_PKEY>? in
                 switch format {
                 case .pem:
-                    if let callbackManager = callbackManager {
-                        // This annoying conditional binding is used to work around the fact that I cannot pass
-                        // a variable to a function pointer argument.
-                        return CNIOBoringSSL_PEM_read_bio_PrivateKey(bio, nil, { globalBoringSSLPassphraseCallback(buf: $0, size: $1, rwflag: $2, u: $3) }, Unmanaged.passUnretained(callbackManager as AnyObject).toOpaque())
-                    } else {
-                        return CNIOBoringSSL_PEM_read_bio_PrivateKey(bio, nil, nil, nil)
-                    }
+                    // This annoying conditional binding is used to work around the fact that I cannot pass
+                    // a variable to a function pointer argument.
+                    return CNIOBoringSSL_PEM_read_bio_PrivateKey(bio, nil, { globalBoringSSLPassphraseCallback(buf: $0, size: $1, rwflag: $2, u: $3) }, Unmanaged.passUnretained(callbackManager as AnyObject).toOpaque())
                 case .der:
                     return CNIOBoringSSL_d2i_PrivateKey_bio(bio, nil)
                 }
