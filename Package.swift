@@ -35,7 +35,7 @@ let package = Package(
 MANGLE_END */
     ],
     dependencies: [
-        .package(url: "https://github.com/val-verde/swift-nio.git", .branch("val-verde-mainline")),
+        .package(url: "https://github.com/val-verde/swift-nio.git", .branch("val-verde-android-mainline-next")),
     ],
     targets: [
         .target(name: "CNIOBoringSSL"),
