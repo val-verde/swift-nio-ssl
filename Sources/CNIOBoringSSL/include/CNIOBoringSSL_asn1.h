@@ -62,6 +62,10 @@
 
 #include <time.h>
 
+#if !defined(__ANDROID__)
+#include <utmpx.h>
+#endif
+
 #include "CNIOBoringSSL_bio.h"
 #include "CNIOBoringSSL_stack.h"
 
